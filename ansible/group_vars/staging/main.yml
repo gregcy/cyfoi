@@ -1,0 +1,70 @@
+---
+# the alaveteli repo to use
+# Note: this is the alaveteli app which is normally fetched from
+# https://github.com/mysociety/alaveteli/
+# but this setting allows us to use a fork and branch
+# for hotfixes or customisations
+alaveteli_repo: "https://github.com/mysociety/alaveteli/"
+# the branch, tag or commit ref to checkout. Defaults to master
+alaveteli_commit: "0.39.1.6"
+
+user_support_emails: suppport@test.gregandfroso.home
+
+# keep emails locally delivered on staging server as we seem to have
+# lots of smtp connection issues
+# FIXME: change this back to an external address once smpt is fixed
+webmaster_email: ubuntu
+
+db_name_production: alaveteli_production
+db_name_test: alaveteli_test
+db_user_password: ultra5
+db_user_name: foi
+
+# this one is in vault.yml, encrypted
+rails_secret_key_base: 7b2af74c420a0e3c2312922bbadabd46bbf45dbb3f338c703e2e018ce5af2b4310a61175d3f52be899fe3b638ddcfbcc248832a8791f92f886685eb72e63d9dc
+
+site_domain: gregandfroso.home
+
+# hostname of the server
+server_name: test
+server_fqdn: "{{ server_name }}.{{ site_domain }}"
+
+incoming_email_secret: ultra5
+
+emergency_admin_password: ultra5
+
+# the recaptcha keys come from https://www.google.com/recaptcha/admin/site/345908267/settings
+# the site key can be public, as it appears in the HTML page sent to user browsers
+recaptcha_site_key: 6Lc9rQodAAAAALzwcSPvrn0DqxzHfAhlNuR3T9n9
+recaptcha_secret_key: 6Lc9rQodAAAAAB6pNhok4GgND85ZpdzZ23fmVRXs
+
+# send all requests to public bodies to this email instead
+# useful for staging, set to empty string in production
+override_all_public_body_emails: greg.andreou@gmail.com
+
+# change the prefix for staging/production
+# to limit confusion
+incoming_email_short_prefix: staging
+incoming_email_prefix: "{{ incoming_email_short_prefix }}+"
+
+# git branch in theme repo to use for the site
+# the production site should use master
+theme_branch: staging
+
+# folder where exim will write incoming emails
+raw_emails_location: files/raw_emails
+
+# disable crawling by bots (at least the ones respecting robots.txt)
+do_not_crawl: true
+
+# disable db backup on staging server by not specifying any values here
+backup_storage_access_key: ""
+backup_storage_secret_key: ""
+
+db_backup_walg_envdir: /etc/wal-g.d/env
+db_backup_archive_mode: "off"
+db_backup_archive_command: ""
+db_backup_storage_endpoint: "https://sos-ch-gva-2.exo.io"
+db_backup_storage_prefix: "s3://madada-db-backup"
+
+# maxmind_license_key: "{{ vault_maxmind_license_key }}"

@@ -1,0 +1,600 @@
+---
+# Setup alaveteli and dependencies
+
+# Setup based on https://alaveteli.org/docs/installing/manual_install/
+
+# - name: Set hostname
+# become: yes
+# hostname:
+# name: "{{ server_name }}"
+
+- name: Preserve hostname across reboots
+  become: yes
+  lineinfile:
+    path: /etc/hostname
+    regexp: '.*'
+    create: yes
+    line: "{{ server_name }}"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Set mailname
+  become: yes
+  lineinfile:
+    path: /etc/mailname
+    regexp: '.*'
+    create: yes
+    line: "{{ site_domain }}"
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Setup /etc/hosts
+  become: yes
+  template:
+    src: etc_hosts.j2
+    dest: /etc/hosts
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create alaveteli user
+  become: yes
+  user:
+    name: alaveteli
+    comment: Alaveteli
+    groups: adm
+    password_lock: yes
+
+- name: Create directory for alaveteli source (1/2)
+  become: yes
+  file:
+    path: /var/www
+    owner: alaveteli
+    group: alaveteli
+    state: directory
+
+- name: Create directory for alaveteli source (2/2)
+  become: yes
+  file:
+    path: "{{ alaveteli_path }}"
+    owner: alaveteli
+    group: alaveteli
+    state: directory
+
+- name: Add key for passenger apt repository
+  become: yes
+  apt_key:
+    keyserver: keyserver.ubuntu.com
+    state: present
+    id: 561F9B9CAC40B2F7
+
+- name: Add passenger apt repository
+  become: yes
+  apt_repository:
+    repo: deb https://oss-binaries.phusionpassenger.com/apt/passenger focal main
+    state: present
+    filename: passenger
+
+- name: Add brightbox ruby PPA
+  become: yes
+  apt_repository:
+    repo: ppa:brightbox/ruby-ng
+
+- name: Apt update and upgrade
+  become: yes
+  apt:
+    update_cache: yes
+    upgrade: safe
+
+- name: Set postfix config before installing postfix (Internet site)
+  become: yes
+  shell: echo postfix postfix/main_mailer_type select 'Internet Site' | /usr/bin/debconf-set-selections
+
+- name: Set postfix hostname
+  become: yes
+  shell: echo postfix postfix/mail_name string "{{ site_domain }}" | /usr/bin/debconf-set-selections
+
+- name: Install apt packages needed by Alaveteli
+  become: yes
+  apt:
+    name: "{{ packages }}"
+    state: latest
+    autoremove: yes
+  vars:
+    packages:
+      # list copied from alaveteli/config/packages
+    - build-essential
+    - bundler
+    - catdoc
+    - daemontools
+    - dirmngr
+    - dovecot-pop3d
+    - elinks
+    - geoip-database
+    - gettext
+    - ghostscript
+    - git
+    - gnupg
+    - gnuplot-nox
+    - imagemagick
+    - irb
+    - libicu-dev
+    - libmagic-dev
+    - libmagickwand-dev
+    - libnginx-mod-http-passenger
+    - libpq-dev
+    - libsqlite3-dev
+    - libxml2-dev
+    - libxslt1-dev
+    - links
+    - lockfile-progs
+    - logrotate
+    - memcached
+    - mutt
+    - nginx
+    - passenger
+    - pdftk-java
+    - poppler-utils
+    - postfix
+    - python3-pip
+    - python3-psycopg2
+    - python-setuptools
+    - python-yaml
+    - python-is-python3
+    - rake
+    - rdoc
+    - ruby2.5
+    - ruby2.5-dev
+    - ruby-switch
+    - sqlite3
+    - tnef
+    - ttf-bitstream-vera
+    - unrtf
+    - unzip
+    - uuid-dev
+    - xfonts-75dpi
+    - wv
+    - xapian-tools
+
+- name: Install wkhtmltopdf static version
+  become: yes
+  apt:
+    # ubuntu's default package requires an X server to work, while this static build does not
+    deb: https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.focal_amd64.deb
+
+- name: Switch to ruby 2.5 by default
+  become: yes
+  shell: "ruby-switch  --set ruby2.5"
+
+- name: Clone alaveteli repository
+  become: yes
+  become_user: alaveteli
+  git:
+    repo: "{{ alaveteli_repo }}"
+    dest: "{{ alaveteli_path }}"
+    version: "{{ alaveteli_commit }}"
+    depth: 1
+    force: yes
+    recursive: yes
+
+# Fix issues with Thor
+- name: Fix Ubuntu issues with thor
+  shell: gem install bundler
+  become: yes
+
+- name: Run bundle Install
+  become: yes
+  #become_user: alaveteli
+  shell: "cd {{ alaveteli_path }} && bundle install"
+
+- name: Create log directory for alaveteli
+  become: yes
+  file:
+    path: "{{ alaveteli_path }}/log"
+    owner: alaveteli
+    group: alaveteli
+    state: directory
+    mode: 0775
+
+- name: Ensure access to log file for alaveteli
+  become: yes
+  file:
+    path: "{{ alaveteli_path }}/log/production.log"
+    owner: alaveteli
+    group: alaveteli
+    state: touch
+    mode: 0664
+
+#
+# DATABASE / POSTGRESQL
+#
+# based on https://alaveteli.org/docs/installing/manual_install/#configure-database
+
+- name: Create template database
+  become: yes
+  become_user: postgres
+  postgresql_db:
+    name: template_utf8
+    encoding: "UTF-8"
+    template: template0
+
+- name: Mark template_utf8 as template DB
+  shell: psql -c "update pg_database set datistemplate=true where datname='template_utf8';"
+  become: yes
+  become_user: postgres
+
+- name: Create alaveteli databases
+  become: yes
+  become_user: postgres
+  postgresql_db:
+    name: "{{ item }}"
+    owner: "{{ db_user_name }}"
+    template: template_utf8
+  loop:
+    - "{{ db_name_test }}"
+    - "{{ db_name_production }}"
+#
+# EMAIL / MTA / POSTFIX
+#
+
+- name: Create raw emails folder
+  become: yes
+  file:
+    path: "{{ alaveteli_path }}/{{ raw_emails_location }}"
+    owner: alaveteli
+    group: alaveteli
+    state: directory
+    mode: 0775
+
+- name: Set postfix logging file
+  become: yes
+  lineinfile:
+    path: /etc/rsyslog.d/50-default.conf
+    regexp: '^mail.\*'
+    line: 'mail.*                          -{{ postfix_log_path }}/mail.log'
+
+- name: Set postfix error logging file
+  become: yes
+  lineinfile:
+    path: /etc/rsyslog.d/50-default.conf
+    regexp: '^mail.err'
+    line: 'mail.err                          {{ postfix_log_path }}/mail.err'
+
+- name: Setup logrotate for postfix logs
+  become: yes
+  blockinfile:
+    path: /etc/logrotate.d/postfix_alaveteli
+    create: yes
+    owner: root
+    group: root
+    mode: 0644
+    block: |
+      {{ postfix_log_path }}/mail.log
+      {
+          rotate 180
+          daily
+          dateext
+          missingok
+          notifempty
+          compress
+          delaycompress
+          sharedscripts
+          postrotate
+                  reload rsyslog >/dev/null 2>&1 || true
+                  reload postfix >/dev/null 2>&1 || true
+          endscript
+      }
+
+- name: Update postfix master.cf
+  become: yes
+  template:
+    src: postfix_master_cf.j2
+    dest: /etc/postfix/master.cf
+
+- name: Update postfix main.cf
+  become: yes
+  template:
+    src: postfix_main_cf.j2
+    dest: /etc/postfix/main.cf
+
+- name: Update postfix transports
+  become: yes
+  template:
+    src: postfix_transports.j2
+    dest: /etc/postfix/transports
+
+- name: Update postfix recipients
+  become: yes
+  template:
+    src: postfix_recipients.j2
+    dest: /etc/postfix/recipients
+
+- name: Update postfix recipient_bcc
+  become: yes
+  template:
+    src: postfix_recipient_bcc.j2
+    dest: /etc/postfix/recipient_bcc
+
+- name: Update postfix aliases
+  become: yes
+  template:
+    src: postfix_etc_aliases.j2
+    dest: /etc/aliases
+
+- name: Restart rsyslog
+  become: yes
+  service:
+    name: rsyslog
+    state: restarted
+
+- name: Reload email aliases
+  become: yes
+  shell: /usr/bin/newaliases
+
+- name: Reload postfix transports
+  become: yes
+  shell: /usr/sbin/postmap /etc/postfix/transports
+
+- name: Reload postfix recipients
+  become: yes
+  shell: /usr/sbin/postmap /etc/postfix/recipients
+
+- name: Reload postfix recipient_bcc
+  become: yes
+  shell: /usr/sbin/postmap /etc/postfix/recipient_bcc
+
+- name: Restart postfix
+  become: yes
+  service:
+    name: postfix
+    state: reloaded
+
+#
+# POP3 SERVER / DOVECOT
+#
+# Instead of having incoming dada+... emails being piped into alaveteli
+# we send them to the dadamail user, postfix saves them in Maildir format
+# dovecot then makes them available via POP3 that the app uses to fetch email
+# at its own pace
+
+- name: Create unix user for email POP delivery
+  become: yes
+  user:
+    name: "{{ pop_mailer_username }}"
+    comment: Inactive user for POP mailbox authentication (via PAM)
+    group: "{{ pop_mailer_username }}"
+    home: "/home/{{ pop_mailer_username }}"
+    password: "{{ pop_mailer_hashed_password }}"
+    shell: /usr/sbin/nologin
+
+- name: Create dovecot.conf file
+  become: yes
+  template:
+    src: dovecot_conf.j2
+    dest: /etc/dovecot/dovecot.conf
+
+- name: Create 10-auth.conf file
+  become: yes
+  template:
+    src: dovecot_10-auth_conf.j2
+    dest: /etc/dovecot/conf.d/10-auth.conf
+
+- name: Create 10-mail.conf file
+  become: yes
+  template:
+    src: dovecot_10-mail_conf.j2
+    dest: /etc/dovecot/conf.d/10-mail.conf
+
+- name: Create 10-ssl.conf file
+  become: yes
+  template:
+    src: dovecot_10-ssl_conf.j2
+    dest: /etc/dovecot/conf.d/10-ssl.conf
+
+- name: Create dovecot-openssl.cnf file
+  become: yes
+  template:
+    src: dovecot_openssl_cnf.j2
+    dest: /usr/share/dovecot/dovecot-openssl.cnf
+
+- name: Restart service
+  become: yes
+  service:
+    name: dovecot
+    state: restarted
+
+#
+# Configure alaveteli
+#
+
+- name: Copy config/general
+  become: yes
+  template:
+    src: config_general.yml
+    dest: "{{ alaveteli_path }}/config/general.yml"
+    owner: alaveteli
+    group: alaveteli
+
+- name: Copy config/database
+  become: yes
+  template:
+    src: config_database.yml
+    dest: "{{ alaveteli_path }}/config/database.yml"
+    owner: alaveteli
+    group: alaveteli
+
+- name: Copy config/routes
+  become: yes
+  template:
+    src: config_routes.rb
+    dest: "{{ alaveteli_path }}/config/routes.rb"
+    owner: alaveteli
+    group: alaveteli
+
+- name: Update theme rake
+  become: yes
+  template:
+    src: themes.rake.j2
+    dest: "{{ alaveteli_path }}/lib/tasks/themes.rake"
+    owner: alaveteli
+    group: alaveteli
+
+- name: TEMP patch alaveteli to pass custom arguments to wkhtmltopdf
+  # this is to stop the newest wkhtmltopdf version from returning an exit code 1 which alaveteli
+  # considers a fail, and causes it to fall back onto text rendering
+  become: yes
+  lineinfile:
+    path: "{{ alaveteli_path }}/app/controllers/request_controller.rb"
+    regexp: 'output = AlaveteliExternalCommand\.run\(convert_command, tmp_input\.path, tmp_output\.path\)'
+    line: "output = AlaveteliExternalCommand.run(convert_command, '--enable-local-file-access', '--load-media-error-handling', 'ignore', '--load-error-handling', 'skip', '--no-images' , tmp_input.path, tmp_output.path)"
+
+- name: TEMP fix link in country message at top of landing page
+  # see https://github.com/mysociety/alaveteli/issues/6131
+  become: yes
+  ansible.builtin.replace:
+    path: "{{ alaveteli_path }}/app/controllers/services_controller.rb"
+    regexp: '\/help\/alaveteli'
+    replace: '/aide/alaveteli'
+
+#- name: Prevent running destructive commands on rails production db
+#  # see https://github.com/mysociety/alaveteli/blob/develop/doc/CHANGES.md#upgrade-notes-5 (upgrade notes for 0.34)
+#  shell: "cd {{ alaveteli_path }} && bundle exec rails db:environment:set RAILS_ENV=production"
+#  become: yes
+#  become_user: alaveteli
+#  environment:
+#    RAILS_ENV: production
+
+- name: Run rails-post-deploy
+  shell: "{{ alaveteli_path }}/script/rails-post-deploy"
+  become: yes
+  become_user: alaveteli
+  environment:
+    RAILS_ENV: production
+
+- name: Rebuild xapian search index
+  shell: "{{ alaveteli_path }}/script/update-xapian-index"
+  become: yes
+  become_user: alaveteli
+  environment:
+    RAILS_ENV: production
+
+- name: Setup cronjob to run various alaveteli tasks
+  # see https://alaveteli.org/docs/installing/manual_install/#generate-crontab
+  become: yes
+  template:
+    src: crontab_alaveteli.j2
+    dest: /etc/cron.d/alaveteli
+
+- name: Setup pop polling daemon
+  become: yes
+  template:
+    src: alaveteli_poll_for_incoming.j2
+    dest: /etc/init.d/alaveteli-poll-for-incoming
+    owner: root
+    group: alaveteli
+    mode: 0754
+
+- name: Start alaveteli pop poller daemon
+  # using ansible service module does not work because it expects a systemd .service file
+  become: yes
+  command: /etc/init.d/alaveteli-poll-for-incoming restart
+
+- name: Setup logrotate for alaveteli logs
+  become: yes
+  blockinfile:
+    path: /etc/logrotate.d/alaveteli
+    create: yes
+    owner: root
+    group: root
+    mode: 0644
+    block: |
+      {{ alaveteli_path }}/log/production.log
+      {
+          rotate 180
+          size 10M
+          daily
+          dateext
+          missingok
+          notifempty
+          compress
+          delaycompress
+          su alaveteli alaveteli
+      }
+
+# ansible is likely to fail here on the first run, because no certificate exists yet
+# to fix this, ssh into the server, and run
+# $ sudo certbot certonly --standalone
+# this will ask a couple of questions (domain name and owner's email)
+# and setup certificates for you
+# then logout and rerun the ansible job (by rerunning the travis job, it should be fine then)
+
+# NGINX / WEB SERVER
+
+- name: Setup nginx main config
+  become: yes
+  template:
+    src: nginx_main.conf.j2
+    dest: /etc/nginx/nginx.conf
+
+- name: Setup nginx site config
+  become: yes
+  template:
+    src: nginx_alaveteli.conf.j2
+    dest: /etc/nginx/sites-available/alaveteli.conf
+
+- name: Disable nginx default site
+  become: yes
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Make the site live
+  become: yes
+  file:
+    src: /etc/nginx/sites-available/alaveteli.conf
+    dest: /etc/nginx/sites-enabled/alaveteli.conf
+    state: link
+
+- name: Create application daemon
+  become: yes
+  template:
+    src: daemon_alaveteli.j2
+    dest: /etc/init.d/alaveteli
+    owner: root
+    group: alaveteli
+    mode: 0754
+
+- name: Disable bot indexing of the site
+  # This should only run on the staging site
+  become: yes
+  when: do_not_crawl
+  template:
+    src: robots.txt.j2
+    dest: "{{ alaveteli_path }}/public/robots.txt"
+    owner: alaveteli
+    group: alaveteli
+    mode: 0644
+
+- name: Restart nginx
+  # this also restarts the rails app through passenger
+  # see https://www.phusionpassenger.com/library/admin/nginx/restart_app.html#restarting-nginx
+  become: yes
+  service:
+    name: nginx
+    state: restarted
+
+- name: Setup letsencrypt certificate renewal cron job
+  # this should renew the SSL certificate used by the site without breaking our email
+  # settings.
+  # See https://github.com/okfnfr/dada-core/issues/6#issuecomment-527367993 for details
+  become: yes
+  cron:
+    name: "Renew letsencrypt certificate"
+    job: "sudo service nginx stop ; sudo certbot renew --reuse-key ; sudo service nginx start"
+    weekday: "6"
+    minute: "17"
+    hour: "3"
+    user: root
+  when: inventory_hostname == 'madada.fr'

@@ -1,0 +1,16 @@
+---
+dependencies:
+  - role: postgresql
+    become: yes
+    postgresql_version: 9.6
+    postgresql_users:
+      - name: "{{ db_user_name }}"
+        pass: "{{ db_user_password }}"
+        encrypted: yes
+    postgresql_listen_addresses:
+      - "localhost"
+    # WAL settings for wal-g backup
+    postgresql_wal_level: "replica"
+    postgresql_archive_mode: "{{ db_backup_archive_mode }}"
+    postgresql_archive_timeout: 120
+    postgresql_archive_command: "{{ db_backup_archive_command }}"
