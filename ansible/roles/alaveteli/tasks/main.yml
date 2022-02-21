@@ -563,8 +563,8 @@
     src: daemon_alaveteli.j2
     dest: /etc/init.d/alaveteli
     owner: root
-    group: alaveteli
-    mode: 0754
+    group: root
+    mode: 0755
 
 - name: Disable bot indexing of the site
   # This should only run on the staging site

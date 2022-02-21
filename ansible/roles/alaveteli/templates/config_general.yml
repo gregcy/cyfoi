@@ -45,7 +45,7 @@ DOMAIN: '{{ site_domain }}'
 # FORCE_SSL - Boolean (default: true)
 #
 # ---
-FORCE_SSL: true
+FORCE_SSL: false
 
 # ISO country code of country currrently deployed in
 # (http://en.wikipedia.org/wiki/ISO_3166-1_alpha-2)
