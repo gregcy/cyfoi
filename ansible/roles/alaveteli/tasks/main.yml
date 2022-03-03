@@ -70,6 +70,25 @@
     state: present
     id: 561F9B9CAC40B2F7
 
+- name: Remove apt packages we don't want (certbot/bundler)
+  # se we can install certbot from snap
+  become: yes
+  apt:
+    name: "{{ packages }}"
+    state: absent
+  vars:
+    packages:
+    - certbot
+    - bundler
+    - ruby2.5  # TODO: remove ruby2.5 once update has been completed
+    - ruby2.5-dev
+
+- name: Install certbot using snap
+  become: yes
+  shell: |
+    snap install --classic certbot
+    ln -sf /snap/bin/certbot /usr/bin/certbot
+
 - name: Add passenger apt repository
   become: yes
   apt_repository:
@@ -105,8 +124,8 @@
   vars:
     packages:
       # list copied from alaveteli/config/packages
+    - apt-transport-https
     - build-essential
-    - bundler
     - catdoc
     - daemontools
     - dirmngr
@@ -134,19 +153,22 @@
     - memcached
     - mutt
     - nginx
+    - opendkim
+    - opendkim-tools
     - passenger
-    - pdftk-java
+    # - pdftk
     - poppler-utils
     - postfix
+    - python-yaml  # this is python2.7 :( FIXME: switch the system to python3 by default
     - python3-pip
     - python3-psycopg2
-    - python-setuptools
-    - python-yaml
+    - python3-setuptools
+    - python3-yaml
     - python-is-python3
     - rake
     - rdoc
-    - ruby2.5
-    - ruby2.5-dev
+    - ruby2.7
+    - ruby2.7-dev
     - ruby-switch
     - sqlite3
     - tnef
@@ -164,9 +186,9 @@
     # ubuntu's default package requires an X server to work, while this static build does not
     deb: https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.focal_amd64.deb
 
-- name: Switch to ruby 2.5 by default
+- name: Switch to ruby 2.7 by default
   become: yes
-  shell: "ruby-switch  --set ruby2.5"
+  shell: "ruby-switch  --set ruby2.7"
 
 - name: Clone alaveteli repository
   become: yes
@@ -186,8 +208,8 @@
 
 - name: Run bundle Install
   become: yes
-  #become_user: alaveteli
-  shell: "cd {{ alaveteli_path }} && bundle install"
+  become_user: alaveteli
+  shell: "cd {{ alaveteli_path }} && bundle install --path vendor/bundle"
 
 - name: Create log directory for alaveteli
   become: yes
@@ -206,6 +228,13 @@
     group: alaveteli
     state: touch
     mode: 0664
+
+- name: Upgrade pip to latest version
+  become: yes
+  pip:
+    name: pip
+    state: latest
+
 
 #
 # DATABASE / POSTGRESQL
