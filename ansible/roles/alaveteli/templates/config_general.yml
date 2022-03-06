@@ -270,7 +270,7 @@ FRONTPAGE_PUBLICBODY_EXAMPLES: ''
 #
 # ---
 THEME_URLS:
-  - 'https://gitlab.com/madada-team/dada-france-theme.git'
+  - 'git://github.com/gregcy/cyfoi-theme.git'
   
 # When rails-post-deploy installs the themes, it will try to use the branch
 # specified by THEME_BRANCH first. If the branch doesn't exist it will fall

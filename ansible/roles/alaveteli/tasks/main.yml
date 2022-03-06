@@ -462,13 +462,13 @@
     owner: alaveteli
     group: alaveteli
 
-- name: Update theme rake
-  become: yes
-  template:
-    src: themes.rake.j2
-    dest: "{{ alaveteli_path }}/lib/tasks/themes.rake"
-    owner: alaveteli
-    group: alaveteli
+#- name: Update theme rake
+#  become: yes
+#  template:
+#    src: themes.rake.j2
+#    dest: "{{ alaveteli_path }}/lib/tasks/themes.rake"
+#    owner: alaveteli
+#    group: alaveteli
 
 - name: TEMP patch alaveteli to pass custom arguments to wkhtmltopdf
   # this is to stop the newest wkhtmltopdf version from returning an exit code 1 which alaveteli
