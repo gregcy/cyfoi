@@ -270,7 +270,7 @@ FRONTPAGE_PUBLICBODY_EXAMPLES: ''
 #
 # ---
 THEME_URLS:
-  - 'git://github.com/gregcy/cyfoi-theme.git'
+  - 'git://github.com/mysociety/whatdotheyknow-theme.git'
   
 # When rails-post-deploy installs the themes, it will try to use the branch
 # specified by THEME_BRANCH first. If the branch doesn't exist it will fall
@@ -288,7 +288,7 @@ THEME_URLS:
 #   THEME_BRANCH: false
 #
 # ---
-THEME_BRANCH: '{{ theme_branch }}'
+THEME_BRANCH: 'master'
 
 # Does a user need to sign in to start the New Request process?
 #
@@ -727,7 +727,7 @@ MTA_LOG_TYPE: 'postfix'
 #   DONATION_URL: http://www.mysociety.org/donate
 #
 # ---
-DONATION_URL: null
+DONATION_URL: 'https://www.google.com/'
 
 # If PUBLIC_BODY_STATISTICS_PAGE is set to true, Alaveteli will make a page of
 # statistics on the performance of public bodies (which you can see at
