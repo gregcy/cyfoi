@@ -8,7 +8,7 @@ alaveteli_repo: "https://github.com/mysociety/alaveteli/"
 # the branch, tag or commit ref to checkout. Defaults to master
 alaveteli_commit: "0.39.1.8"
 
-user_support_emails: suppport@test.gregandfroso.home
+user_support_emails: suppport@test.foi.cy
 email: greg@greg.cy
 
 # keep emails locally delivered on staging server as we seem to have
@@ -25,7 +25,7 @@ db_user_name: foi
 # this one is in vault.yml, encrypted
 rails_secret_key_base: 7b2af74c420a0e3c2312922bbadabd46bbf45dbb3f338c703e2e018ce5af2b4310a61175d3f52be899fe3b638ddcfbcc248832a8791f92f886685eb72e63d9dc
 
-site_domain: gregandfroso.home
+site_domain: foi.cy
 
 # hostname of the server
 server_name: test
